@@ -1,4 +1,13 @@
+using Azure.Identity;
+
 var builder = WebApplication.CreateBuilder(args);
+
+var vaultUrl = builder.Configuration["KeyVault:Url"];
+if (!string.IsNullOrWhiteSpace(vaultUrl))
+{
+    builder.Configuration.AddAzureKeyVault(new Uri(vaultUrl), new DefaultAzureCredential());
+}
+
 builder.Services.AddSingleton<IDeviceStore, InMemoryDeviceStore>();
 var app = builder.Build();
 
@@ -6,6 +15,16 @@ app.MapGet("/", (IConfiguration config) => new
 {
     site = config["Equipment:SiteName"] ?? "Not set",
     environment = app.Environment.EnvironmentName
+});
+
+app.MapGet("/config-check", (IConfiguration config) =>
+{
+    var apiKey = config["Equipment:ApiKey"];
+    return new
+    {
+        apiKeyConfigured = !string.IsNullOrEmpty(apiKey),
+        apiKeyLength = apiKey?.Length ?? 0
+    };
 });
 
 app.MapGet("/devices", (IDeviceStore store) => store.GetAll());
