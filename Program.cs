@@ -1,4 +1,5 @@
 using Azure.Identity;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,8 +9,23 @@ if (!string.IsNullOrWhiteSpace(vaultUrl))
     builder.Configuration.AddAzureKeyVault(new Uri(vaultUrl), new DefaultAzureCredential());
 }
 
-builder.Services.AddSingleton<IDeviceStore, InMemoryDeviceStore>();
+builder.Services.AddDbContext<EquipmentDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("Equipment")));
+builder.Services.AddScoped<IDeviceStore, SqlDeviceStore>();
 var app = builder.Build();
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<EquipmentDbContext>();
+    db.Database.EnsureCreated();
+
+    if (!db.Devices.Any())
+    {
+        db.Devices.AddRange(
+            new DeviceEntity { Name = "Pump-01", Status = "Online" },
+            new DeviceEntity { Name = "Valve-02", Status = "Offline" });
+        db.SaveChanges();
+    }
+}
 
 app.MapGet("/", (IConfiguration config) => new
 {
